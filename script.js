@@ -1,7 +1,5 @@
-// * script.js *
-const socket = io("https://browser-based-remote-control-backend.onrender.com", {
-  transports: ["websocket"]
-});
+// script.js (UPDATED — agent-based streaming, no browser sandbox)
+const socket = io("https://browser-based-remote-control-backend.onrender.com", { transports: ["websocket"] });
 
 const nameInput = document.getElementById("name");
 const roomInput = document.getElementById("room");
@@ -17,7 +15,7 @@ const remoteVideo = document.getElementById("remote");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const userListEl = document.getElementById("userList");
 
-// dynamically create Leave button if not exists
+// create Leave button if missing
 let leaveBtn = document.getElementById("leaveBtn");
 if (!leaveBtn) {
   leaveBtn = document.createElement("button");
@@ -27,12 +25,24 @@ if (!leaveBtn) {
   document.querySelector(".row").appendChild(leaveBtn);
 }
 
-let pc, localStream, remoteStream;
+// Replace <video id="remote"> with a canvas to draw base64 frames
+let remoteCanvas = document.createElement("canvas");
+remoteCanvas.id = "remoteCanvas";
+remoteCanvas.style.width = "100%";
+remoteCanvas.style.height = "100%";
+remoteCanvas.style.display = "block";
+remoteCanvas.style.background = "black";
+remoteVideo.parentNode.replaceChild(remoteCanvas, remoteVideo);
+const ctx = remoteCanvas.getContext("2d");
+
+let pc, localStream;
 let roomId;
 let canFullscreen = false;
 let currentUser = null;
+let viewing = false; // user gesture done
+let agentPresent = false;
 
-// ---- UI helper ----
+// UI helpers
 function hideInputs() {
   nameInput.style.display = "none";
   roomInput.style.display = "none";
@@ -42,7 +52,6 @@ function hideInputs() {
   shareBtn.disabled = false;
   leaveBtn.disabled = false;
 }
-
 function showInputs() {
   nameInput.style.display = "";
   roomInput.style.display = "";
@@ -54,8 +63,6 @@ function showInputs() {
   leaveBtn.disabled = true;
   statusEl.textContent = "";
 }
-
-// ---- Sidebar update ----
 function updateUserList(users) {
   if (!userListEl) return;
   userListEl.innerHTML = users.map(u => `
@@ -69,7 +76,7 @@ function updateUserList(users) {
   `).join("");
 }
 
-// ---- Join ----
+// JOIN
 joinBtn.onclick = () => {
   const name = nameInput.value.trim();
   roomId = roomInput.value.trim();
@@ -79,200 +86,159 @@ joinBtn.onclick = () => {
   socket.emit("set-name", { name });
   socket.emit("join-room", { roomId, name, isAgent: false });
   hideInputs();
-  statusEl.textContent = `✅ ${name} Joined ${roomId}`;
+  statusEl.textContent = `✅ ${name} joined ${roomId}`;
 };
 
-// ---- Request screen ----
+// REQUEST (controller)
 shareBtn.onclick = () => {
+  if (!roomId) return alert("Join a room first");
   socket.emit("request-screen", { roomId, from: socket.id });
   statusEl.textContent = "⏳ Requesting screen...";
+  // this click is a user gesture we can use later to request fullscreen
   canFullscreen = true;
 };
 
-// ---- Stop ----
+// STOP
 stopBtn.onclick = () => {
   const name = currentUser || nameInput.value.trim();
   socket.emit("stop-share", { roomId, name });
-  if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
-  remoteVideo.srcObject = null;
+  clearCanvas();
   statusEl.textContent = "🛑 Stopped";
   stopBtn.disabled = true;
   shareBtn.disabled = false;
 };
 
-// ---- Leave ----
+// LEAVE
 leaveBtn.onclick = () => {
   if (!roomId) return;
   const name = currentUser || nameInput.value.trim();
   socket.emit("leave-room", { roomId, name });
 
-  // stop local/remote streams
-  if (localStream) {
-    try { localStream.getTracks().forEach(t => t.stop()); } catch (e) {}
-    localVideo.srcObject = null;
-    localStream = null;
-  }
-  if (remoteStream) {
-    try { remoteStream.getTracks().forEach(t => t.stop()); } catch (e) {}
-    remoteVideo.srcObject = null;
-    remoteStream = null;
-  }
-
-  // Reset peer connection
-  try {
-    if (pc) { pc.close(); pc = null; }
-  } catch (e) {}
-
-  // Reset UI completely
+  // reset
+  clearCanvas();
+  try { if (pc) { pc.close(); pc = null; } } catch (e) {}
   showInputs();
-  userListEl.innerHTML = ""; // clear sidebar
+  userListEl.innerHTML = "";
   roomId = null;
   currentUser = null;
   statusEl.textContent = "🚪 Left the room";
 };
 
-// ---- Incoming screen request ----
+function clearCanvas() {
+  ctx.clearRect(0, 0, remoteCanvas.width, remoteCanvas.height);
+  viewing = false;
+}
+
+// === Incoming request on target UI ===
 socket.on("screen-request", ({ from, name }) => {
   permBox.style.display = "block";
   document.getElementById("permText").textContent = `${name} wants to view your screen`;
 
-  acceptBtn.onclick = async () => {
+  // Accept handler: do NOT call getDisplayMedia() — instruct to download/run agent and tell server accepted
+  acceptBtn.onclick = () => {
     permBox.style.display = "none";
 
-    if (confirm("For full remote control please download & run the Agent app.\nDo you want to download it now?")) {
+    // prompt to download/run agent
+    if (confirm("Full remote control requires the agent. Download agent now?")) {
       const encodedRoom = encodeURIComponent(roomId || roomInput.value || "room1");
       window.open(`https://browser-based-remote-control-backend.onrender.com/download-agent?room=${encodedRoom}`, "_blank");
     }
 
-    try {
-      localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      localVideo.srcObject = localStream;
-
-      const track = localStream.getVideoTracks()[0];
-      const settings = track.getSettings();
-      socket.emit("capture-info", {
-        roomId,
-        captureWidth: settings.width,
-        captureHeight: settings.height,
-        devicePixelRatio: window.devicePixelRatio || 1,
-      });
-
-      startPeer(true);
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-      socket.emit("permission-response", { to: from, accepted: true });
-      stopBtn.disabled = false;
-      shareBtn.disabled = true;
-    } catch (err) {
-      console.error(err);
-      socket.emit("permission-response", { to: from, accepted: false });
-    }
+    // Tell server target accepted. Server will instruct agents in the room to start streaming.
+    socket.emit("permission-response", { to: from, accepted: true });
+    statusEl.textContent = "Accepted — start agent on this machine to stream";
+    stopBtn.disabled = false;
+    shareBtn.disabled = true;
   };
 
   rejectBtn.onclick = () => {
     permBox.style.display = "none";
     socket.emit("permission-response", { to: from, accepted: false });
+    statusEl.textContent = "You rejected the request";
   };
 });
 
-// ---- Permission result ----
-socket.on("permission-result", accepted => {
+// Permission result to requester (controller)
+socket.on("permission-result", (accepted) => {
   if (!accepted) {
     statusEl.textContent = "❌ Request denied";
     return;
   }
-  statusEl.textContent = "✅ Request accepted";
-  startPeer(false);
-  stopBtn.disabled = false;
-  shareBtn.disabled = true;
+  statusEl.textContent = "✅ Request accepted by target (agent will stream when run)";
+  // advise user to click fullscreen button (user gesture) to allow auto fullscreen when frames arrive
+  alert('Target accepted. Click the ⛶ fullscreen button now (one click) to allow full-screen display when stream starts.');
 });
 
-// ---- Stop-share ----
+// Stop share
 socket.on("stop-share", ({ name }) => {
-  if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
-  remoteVideo.srcObject = null;
+  clearCanvas();
   statusEl.textContent = `🛑 ${name} stopped sharing`;
   stopBtn.disabled = true;
   shareBtn.disabled = false;
 });
 
-// ---- WebRTC signaling ----
-socket.on("signal", async ({ desc, candidate }) => {
-  if (desc) {
-    if (!pc) startPeer(false);
-    await pc.setRemoteDescription(desc);
-    if (desc.type === "offer") {
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit("signal", { roomId, desc: pc.localDescription });
+// Receive base64 frames from server (agent -> server -> controllers)
+socket.on("screen-frame", ({ agentId, image }) => {
+  if (!image) return;
+  const img = new Image();
+  img.onload = () => {
+    // resize canvas to image natural size (preserve quality)
+    remoteCanvas.width = img.width;
+    remoteCanvas.height = img.height;
+    ctx.drawImage(img, 0, 0, remoteCanvas.width, remoteCanvas.height);
+
+    // on first frame after user gesture, enter fullscreen automatically (allowed because user clicked earlier)
+    if (canFullscreen && !viewing) {
+      const remoteWrapper = document.querySelector(".remote-wrapper");
+      try {
+        if (remoteWrapper.requestFullscreen) remoteWrapper.requestFullscreen();
+        else if (remoteWrapper.webkitRequestFullscreen) remoteWrapper.webkitRequestFullscreen();
+      } catch (e) {
+        console.warn("Fullscreen request failed", e);
+      }
+      viewing = true;
+      canFullscreen = false;
+      statusEl.textContent = "Viewing (fullscreen)";
     }
-  } else if (candidate) {
-    try { if (pc) await pc.addIceCandidate(candidate); } catch (e) { console.error(e); }
-  }
+  };
+  img.src = 'data:image/png;base64,' + image;
 });
 
-// ---- Peer ----
-function startPeer(isOfferer) {
-  pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-
-  pc.onicecandidate = e => {
-    if (e.candidate) socket.emit("signal", { roomId, candidate: e.candidate });
-  };
-
-  pc.ontrack = e => {
-    if (!remoteStream) {
-      remoteStream = new MediaStream();
-      remoteVideo.srcObject = remoteStream;
-    }
-    remoteStream.addTrack(e.track);
-    remoteVideo.onloadedmetadata = () => {
-      const remoteWrapper = document.querySelector(".remote-wrapper");
-      if (canFullscreen && remoteWrapper.requestFullscreen) {
-        remoteWrapper.requestFullscreen().catch(err => console.warn("⚠️ Auto-fullscreen failed:", err));
-        canFullscreen = false;
-      }
-    };
-  };
-
-  if (isOfferer) {
-    pc.onnegotiationneeded = async () => {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit("signal", { roomId, desc: pc.localDescription });
-    };
-  }
-
-  enableRemoteControl();
-}
-
-// ---- Remote Control ----
+// Control events: use canvas to compute normalized coordinates
 function enableRemoteControl() {
-  remoteVideo.addEventListener("mousemove", e => {
-    const rect = remoteVideo.getBoundingClientRect();
+  // mouse move + click events on canvas
+  remoteCanvas.addEventListener("mousemove", e => {
+    const rect = remoteCanvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
     socket.emit("control", { type: "mousemove", x, y });
   });
 
   ["click", "dblclick", "mousedown", "mouseup"].forEach(evt => {
-    remoteVideo.addEventListener(evt, e => socket.emit("control", { type: evt, button: e.button }));
+    remoteCanvas.addEventListener(evt, e => {
+      const rect = remoteCanvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      socket.emit("control", { type: evt, x, y, button: e.button });
+    });
   });
 
-  remoteVideo.addEventListener("wheel", e => {
+  remoteCanvas.addEventListener("wheel", e => {
     socket.emit("control", { type: "wheel", deltaY: e.deltaY });
   });
 
   document.addEventListener("keydown", e => socket.emit("control", { type: "keydown", key: e.key }));
   document.addEventListener("keyup", e => socket.emit("control", { type: "keyup", key: e.key }));
 }
+enableRemoteControl(); // enable by default
 
-// ---- Fullscreen ----
+// Fullscreen button (manual)
 fullscreenBtn.onclick = () => {
   const remoteWrapper = document.querySelector(".remote-wrapper");
   if (remoteWrapper.requestFullscreen) remoteWrapper.requestFullscreen();
 };
 
-// ---- Online users ----
+// Online users
 socket.on("peer-list", users => updateUserList(users));
 socket.on("peer-joined", () => socket.emit("get-peers"));
 socket.on("peer-left", () => socket.emit("get-peers"));
