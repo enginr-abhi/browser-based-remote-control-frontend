@@ -1,6 +1,9 @@
-// script.js (UPDATED — agent-based streaming, no browser sandbox)
-const socket = io("https://browser-based-remote-control-backend.onrender.com", { transports: ["websocket"] });
+// ====== Socket.io Connection ======
+const socket = io("https://browser-based-remote-control-backend.onrender.com", {
+  transports: ["websocket"],
+});
 
+// ====== UI elements ======
 const nameInput = document.getElementById("name");
 const roomInput = document.getElementById("room");
 const joinBtn = document.getElementById("joinBtn");
@@ -15,68 +18,65 @@ const remoteVideo = document.getElementById("remote");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const userListEl = document.getElementById("userList");
 
-// create Leave button if missing
-let leaveBtn = document.getElementById("leaveBtn");
-if (!leaveBtn) {
-  leaveBtn = document.createElement("button");
-  leaveBtn.id = "leaveBtn";
-  leaveBtn.textContent = "Leave";
-  leaveBtn.disabled = true;
-  document.querySelector(".row").appendChild(leaveBtn);
-}
-
-// Replace <video id="remote"> with a canvas to draw base64 frames
+// ====== Replace remote <video> with <canvas> for drawing frames ======
 let remoteCanvas = document.createElement("canvas");
 remoteCanvas.id = "remoteCanvas";
-remoteCanvas.style.width = "100%";
-remoteCanvas.style.height = "100%";
-remoteCanvas.style.display = "block";
-remoteCanvas.style.background = "black";
+remoteCanvas.style.cssText =
+  "width:100%;height:100%;display:block;background:black;border-radius:6px;";
 remoteVideo.parentNode.replaceChild(remoteCanvas, remoteVideo);
 const ctx = remoteCanvas.getContext("2d");
 
-let pc, localStream;
-let roomId;
+// ====== State variables ======
+let roomId, currentUser;
 let canFullscreen = false;
-let currentUser = null;
-let viewing = false; // user gesture done
-let agentPresent = false;
+let viewing = false;
 
-// UI helpers
+// ====== Helper functions ======
 function hideInputs() {
-  nameInput.style.display = "none";
-  roomInput.style.display = "none";
-  document.querySelector('label[for="name"]').style.display = 'none';
-  document.querySelector('label[for="room"]').style.display = 'none';
-  joinBtn.style.display = 'none';
+  ["name", "room"].forEach((id) => {
+    const el = document.getElementById(id);
+    el.style.display = "none";
+    document.querySelector(`label[for='${id}']`).style.display = "none";
+  });
+  joinBtn.style.display = "none";
   shareBtn.disabled = false;
-  leaveBtn.disabled = false;
+  stopBtn.disabled = true;
 }
+
 function showInputs() {
-  nameInput.style.display = "";
-  roomInput.style.display = "";
-  document.querySelector('label[for="name"]').style.display = '';
-  document.querySelector('label[for="room"]').style.display = '';
-  joinBtn.style.display = '';
+  ["name", "room"].forEach((id) => {
+    const el = document.getElementById(id);
+    el.style.display = "";
+    document.querySelector(`label[for='${id}']`).style.display = "";
+  });
+  joinBtn.style.display = "";
   shareBtn.disabled = true;
   stopBtn.disabled = true;
-  leaveBtn.disabled = true;
   statusEl.textContent = "";
 }
+
 function updateUserList(users) {
-  if (!userListEl) return;
-  userListEl.innerHTML = users.map(u => `
-    <div class="user-item">
-      <div>
-        <div class="user-name">${u.name}</div>
-        <div class="user-room">Room: ${u.roomId}</div>
+  userListEl.innerHTML = users
+    .map(
+      (u) => `
+      <div class="user-item">
+        <div>
+          <div class="user-name">${u.name}</div>
+          <div class="user-room">Room: ${u.roomId}</div>
+        </div>
+        <div class="status-dot ${u.isOnline ? "status-online" : "status-offline"}"></div>
       </div>
-      <div class="status-dot ${u.isOnline ? "status-online" : "status-offline"}"></div>
-    </div>
-  `).join("");
+    `
+    )
+    .join("");
 }
 
-// JOIN
+function clearCanvas() {
+  ctx.clearRect(0, 0, remoteCanvas.width, remoteCanvas.height);
+  viewing = false;
+}
+
+// ====== JOIN ROOM ======
 joinBtn.onclick = () => {
   const name = nameInput.value.trim();
   roomId = roomInput.value.trim();
@@ -85,38 +85,33 @@ joinBtn.onclick = () => {
   currentUser = name;
   socket.emit("set-name", { name });
   socket.emit("join-room", { roomId, name, isAgent: false });
+
   hideInputs();
-  statusEl.textContent = `✅ ${name} joined ${roomId}`;
+  statusEl.textContent = `✅ ${name} joined room: ${roomId}`;
 };
 
-// REQUEST (controller)
+// ====== REQUEST SCREEN ======
 shareBtn.onclick = () => {
   if (!roomId) return alert("Join a room first");
   socket.emit("request-screen", { roomId, from: socket.id });
-  statusEl.textContent = "⏳ Requesting screen...";
-  // this click is a user gesture we can use later to request fullscreen
+  statusEl.textContent = "⏳ Requesting remote screen...";
   canFullscreen = true;
 };
 
-// STOP
+// ====== STOP SHARE ======
 stopBtn.onclick = () => {
-  const name = currentUser || nameInput.value.trim();
-  socket.emit("stop-share", { roomId, name });
+  socket.emit("stop-share", { roomId, name: currentUser });
   clearCanvas();
-  statusEl.textContent = "🛑 Stopped";
+  statusEl.textContent = "🛑 Sharing stopped";
   stopBtn.disabled = true;
   shareBtn.disabled = false;
 };
 
-// LEAVE
-leaveBtn.onclick = () => {
+// ====== LEAVE ROOM ======
+document.getElementById("leaveBtn").onclick = () => {
   if (!roomId) return;
-  const name = currentUser || nameInput.value.trim();
-  socket.emit("leave-room", { roomId, name });
-
-  // reset
+  socket.emit("leave-room", { roomId, name: currentUser });
   clearCanvas();
-  try { if (pc) { pc.close(); pc = null; } } catch (e) {}
   showInputs();
   userListEl.innerHTML = "";
   roomId = null;
@@ -124,29 +119,22 @@ leaveBtn.onclick = () => {
   statusEl.textContent = "🚪 Left the room";
 };
 
-function clearCanvas() {
-  ctx.clearRect(0, 0, remoteCanvas.width, remoteCanvas.height);
-  viewing = false;
-}
-
-// === Incoming request on target UI ===
+// ====== PERMISSION REQUEST ======
 socket.on("screen-request", ({ from, name }) => {
   permBox.style.display = "block";
   document.getElementById("permText").textContent = `${name} wants to view your screen`;
 
-  // Accept handler: do NOT call getDisplayMedia() — instruct to download/run agent and tell server accepted
   acceptBtn.onclick = () => {
     permBox.style.display = "none";
-
-    // prompt to download/run agent
-    if (confirm("Full remote control requires the agent. Download agent now?")) {
-      const encodedRoom = encodeURIComponent(roomId || roomInput.value || "room1");
-      window.open(`https://browser-based-remote-control-backend.onrender.com/download-agent?room=${encodedRoom}`, "_blank");
+    if (confirm("Full remote control requires agent.exe. Download now?")) {
+      const encodedRoom = encodeURIComponent(roomId || "room1");
+      window.open(
+        `https://browser-based-remote-control-backend.onrender.com/download-agent?room=${encodedRoom}`,
+        "_blank"
+      );
     }
-
-    // Tell server target accepted. Server will instruct agents in the room to start streaming.
     socket.emit("permission-response", { to: from, accepted: true });
-    statusEl.textContent = "Accepted — start agent on this machine to stream";
+    statusEl.textContent = "✅ Accepted — waiting for agent to stream";
     stopBtn.disabled = false;
     shareBtn.disabled = true;
   };
@@ -154,22 +142,21 @@ socket.on("screen-request", ({ from, name }) => {
   rejectBtn.onclick = () => {
     permBox.style.display = "none";
     socket.emit("permission-response", { to: from, accepted: false });
-    statusEl.textContent = "You rejected the request";
+    statusEl.textContent = "❌ Request rejected";
   };
 });
 
-// Permission result to requester (controller)
+// ====== PERMISSION RESULT ======
 socket.on("permission-result", (accepted) => {
   if (!accepted) {
     statusEl.textContent = "❌ Request denied";
     return;
   }
-  statusEl.textContent = "✅ Request accepted by target (agent will stream when run)";
-  // advise user to click fullscreen button (user gesture) to allow auto fullscreen when frames arrive
-  alert('Target accepted. Click the ⛶ fullscreen button now (one click) to allow full-screen display when stream starts.');
+  statusEl.textContent = "✅ Target accepted (waiting for agent stream)";
+  alert("Target accepted. Click ⛶ for fullscreen once stream starts.");
 });
 
-// Stop share
+// ====== STOP SHARE ======
 socket.on("stop-share", ({ name }) => {
   clearCanvas();
   statusEl.textContent = `🛑 ${name} stopped sharing`;
@@ -177,68 +164,73 @@ socket.on("stop-share", ({ name }) => {
   shareBtn.disabled = false;
 });
 
-// Receive base64 frames from server (agent -> server -> controllers)
+// ====== RECEIVE FRAMES (Aspect Ratio Fix) ======
 socket.on("screen-frame", ({ agentId, image }) => {
   if (!image) return;
   const img = new Image();
   img.onload = () => {
-    // resize canvas to image natural size (preserve quality)
-    remoteCanvas.width = img.width;
-    remoteCanvas.height = img.height;
-    ctx.drawImage(img, 0, 0, remoteCanvas.width, remoteCanvas.height);
+    // Maintain proper aspect ratio
+    const aspect = img.width / img.height;
+    const cw = remoteCanvas.clientWidth || 1280;
+    const ch = cw / aspect;
+    remoteCanvas.width = cw;
+    remoteCanvas.height = ch;
 
-    // on first frame after user gesture, enter fullscreen automatically (allowed because user clicked earlier)
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, 0, 0, cw, ch);
+
+    // Auto fullscreen once
     if (canFullscreen && !viewing) {
-      const remoteWrapper = document.querySelector(".remote-wrapper");
+      const wrapper = document.querySelector(".remote-wrapper");
       try {
-        if (remoteWrapper.requestFullscreen) remoteWrapper.requestFullscreen();
-        else if (remoteWrapper.webkitRequestFullscreen) remoteWrapper.webkitRequestFullscreen();
-      } catch (e) {
-        console.warn("Fullscreen request failed", e);
+        wrapper?.requestFullscreen?.();
+      } catch (err) {
+        console.warn("Fullscreen error", err);
       }
       viewing = true;
       canFullscreen = false;
-      statusEl.textContent = "Viewing (fullscreen)";
+      statusEl.textContent = "📺 Viewing fullscreen";
     }
   };
-  img.src = 'data:image/png;base64,' + image;
+  img.src = `data:image/png;base64,${image}`;
 });
 
-// Control events: use canvas to compute normalized coordinates
+// ====== REMOTE CONTROL EVENTS ======
 function enableRemoteControl() {
-  // mouse move + click events on canvas
-  remoteCanvas.addEventListener("mousemove", e => {
-    const rect = remoteCanvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    socket.emit("control", { type: "mousemove", x, y });
-  });
+  const emitCtrl = (type, data) => socket.emit("control", { type, ...data, roomId });
 
-  ["click", "dblclick", "mousedown", "mouseup"].forEach(evt => {
-    remoteCanvas.addEventListener(evt, e => {
-      const rect = remoteCanvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-      socket.emit("control", { type: evt, x, y, button: e.button });
+  remoteCanvas.addEventListener("mousemove", (e) => {
+    const rect = remoteCanvas.getBoundingClientRect();
+    emitCtrl("mousemove", {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
     });
   });
 
-  remoteCanvas.addEventListener("wheel", e => {
-    socket.emit("control", { type: "wheel", deltaY: e.deltaY });
+  ["click", "dblclick", "mousedown", "mouseup"].forEach((evt) => {
+    remoteCanvas.addEventListener(evt, (e) => {
+      const rect = remoteCanvas.getBoundingClientRect();
+      emitCtrl(evt, {
+        x: (e.clientX - rect.left) / rect.width,
+        y: (e.clientY - rect.top) / rect.height,
+        button: e.button,
+      });
+    });
   });
 
-  document.addEventListener("keydown", e => socket.emit("control", { type: "keydown", key: e.key }));
-  document.addEventListener("keyup", e => socket.emit("control", { type: "keyup", key: e.key }));
-}
-enableRemoteControl(); // enable by default
+  remoteCanvas.addEventListener("wheel", (e) => emitCtrl("wheel", { deltaY: e.deltaY }));
 
-// Fullscreen button (manual)
+  document.addEventListener("keydown", (e) => emitCtrl("keydown", { key: e.key }));
+  document.addEventListener("keyup", (e) => emitCtrl("keyup", { key: e.key }));
+}
+enableRemoteControl();
+
+// ====== FULLSCREEN BUTTON ======
 fullscreenBtn.onclick = () => {
-  const remoteWrapper = document.querySelector(".remote-wrapper");
-  if (remoteWrapper.requestFullscreen) remoteWrapper.requestFullscreen();
+  document.querySelector(".remote-wrapper")?.requestFullscreen?.();
 };
 
-// Online users
-socket.on("peer-list", users => updateUserList(users));
+// ====== PEER LIST UPDATES ======
+socket.on("peer-list", (users) => updateUserList(users));
 socket.on("peer-joined", () => socket.emit("get-peers"));
 socket.on("peer-left", () => socket.emit("get-peers"));

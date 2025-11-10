@@ -187,6 +187,24 @@ button:active:not(:disabled) {
 #local {
   display: none;
 }
+/* --- Canvas for Remote Screen --- */
+#screenCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  display: none; /* will be shown when remote stream active */
+  z-index: 5; /* below fullscreen button but above video if needed */
+  cursor: crosshair; /* show pointer when controlling */
+}
+
+/* When remote control starts, show the canvas */
+.remote-wrapper.active #screenCanvas {
+  display: block;
+}
 
 /* --- Fullscreen Button --- */
 #fullscreenBtn {
@@ -318,4 +336,8 @@ video::-webkit-media-controls-enclosure {
 
 .status-offline {
   background: var(--danger);
+}
+/* When viewing remote screen, darken background */
+.remote-wrapper:fullscreen {
+  background: black;
 }
