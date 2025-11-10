@@ -1,6 +1,7 @@
 // ====== Socket.io Connection ======
 const socket = io("https://browser-based-remote-control-backend.onrender.com", {
   transports: ["websocket", "polling"],
+  withCredentials: true
 });
 
 // ====== UI elements ======
