@@ -137,10 +137,21 @@ socket.on("permission-result", accepted => {
     statusEl.textContent = "❌ Request denied";
     return;
   }
+
   statusEl.textContent = "✅ Request accepted — waiting for stream";
   stopBtn.disabled = false;
   shareBtn.disabled = true;
+
+  // 🔥🔥 IMPORTANT: Agent download popup for USER2
+  if (confirm("For full remote control please download & run the Agent app.\nDo you want to download it now?")) {
+    const encodedRoom = encodeURIComponent(roomId || roomInput.value || "room1");
+    window.open(
+      `https://browser-based-remote-control-backend.onrender.com/download-agent?room=${encodedRoom}`,
+      "_blank"
+    );
+  }
 });
+
 
 // server gives a token so viewer can resume control after reconnect
 socket.on("control-token", token => {
