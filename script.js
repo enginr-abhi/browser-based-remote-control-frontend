@@ -32,7 +32,7 @@ let roomId = null;
 let currentUser = null;
 let canvasWidth = 0, canvasHeight = 0;
 let autoFullscreenDone = false;
-let isControlling = false;
+let isControlling = false; // <-- only true when server grants control
 let controlToken = localStorage.getItem("controlToken") || null;
 const ctx = remoteCanvas.getContext("2d");
 
@@ -89,6 +89,7 @@ joinBtn.onclick = () => {
 
 // request screen (viewer asks owner/agent)
 shareBtn.onclick = () => {
+  if (!roomId) return alert("Join a room first");
   socket.emit("request-screen", { roomId, from: socket.id });
   statusEl.textContent = "⏳ Requesting screen...";
 };
@@ -116,42 +117,85 @@ leaveBtn.onclick = () => {
   statusEl.textContent = "🚪 Left the room";
 };
 
-// permission box (owner side) - viewer doesn't need this, but keep handlers
+// -----------------------------
+// permission box (OWNER side)
+// -----------------------------
 socket.on("screen-request", ({ from, name }) => {
   if (!permBox) return;
   permBox.style.display = "block";
   document.getElementById("permText").textContent = `${name} wants to view your screen`;
+
+  // Prevent stacking handlers
+  acceptBtn.onclick = null;
+  rejectBtn.onclick = null;
+
+  // Accept: owner chooses whether to accept AND optionally download agent
   acceptBtn.onclick = () => {
     permBox.style.display = "none";
+
+    // Show owner the download prompt if they need the agent
+    // (This confirm is owner-only because server sends screen-request only to owner)
+    if (confirm("For full remote control please download & run the Agent app.\nDo you want to download it now?")) {
+      const encodedRoom = encodeURIComponent(roomId || roomInput.value || "room1");
+      window.open(
+        `https://browser-based-remote-control-backend.onrender.com/download-agent?room=${encodedRoom}`,
+        "_blank"
+      );
+    }
+
+    // Send permission response back to server (to the requesting viewer)
     socket.emit("permission-response", { to: from, accepted: true });
   };
+
+  // Reject
   rejectBtn.onclick = () => {
     permBox.style.display = "none";
     socket.emit("permission-response", { to: from, accepted: false });
   };
 });
 
-// permission result (viewer side)
+// -----------------------------
+// permission result (VIEWER side)
+// -----------------------------
 socket.on("permission-result", accepted => {
+  // Viewer receives this to know if owner accepted
   if (!accepted) {
     statusEl.textContent = "❌ Request denied";
     return;
   }
 
+  // Owner accepted — viewer should wait for stream / possible agent
   statusEl.textContent = "✅ Request accepted — waiting for stream";
   stopBtn.disabled = false;
   shareBtn.disabled = true;
 
-  // 🔥🔥 IMPORTANT: Agent download popup for USER2
-  if (confirm("For full remote control please download & run the Agent app.\nDo you want to download it now?")) {
-    const encodedRoom = encodeURIComponent(roomId || roomInput.value || "room1");
-    window.open(
-      `https://browser-based-remote-control-backend.onrender.com/download-agent?room=${encodedRoom}`,
-      "_blank"
-    );
+  // Note: DO NOT show download popup here (that was the bug earlier)
+  // Viewer will receive 'no-agent' or later a 'frame' or 'control-token'
+});
+
+// If server tells viewer there's no agent available
+socket.on("no-agent", payload => {
+  console.warn("no-agent:", payload);
+  statusEl.textContent = payload && payload.message ? payload.message : "No agent available";
+});
+
+// Server offers owner a download link (owner-only) - also handled if received
+socket.on("offer-download-agent", ({ roomId: offeredRoom, url }) => {
+  console.log("offer-download-agent", { offeredRoom, url });
+  // offer may reach owner - show confirm and open url if owner accepts
+  if (confirm("Agent not installed. Download & run the Agent app now?")) {
+    const link = url || (`/download-agent?room=${encodeURIComponent(offeredRoom || roomId || roomInput.value || "room1")}`);
+    window.open(link, "_blank");
   }
 });
 
+// Server may notify that agent is available in the room
+socket.on("agent-available", ({ roomId: r, url }) => {
+  console.log("agent-available", { roomId: r, url });
+  if (r === (roomId || roomInput.value)) {
+    statusEl.textContent = "🟢 Agent available in this room";
+  }
+});
 
 // server gives a token so viewer can resume control after reconnect
 socket.on("control-token", token => {
@@ -159,18 +203,32 @@ socket.on("control-token", token => {
     controlToken = token;
     localStorage.setItem("controlToken", token);
     console.log("Received control token:", token);
+    // Receiving a control token usually means viewer was granted control
+    isControlling = true;
+    statusEl.textContent = "🔑 Control granted";
   } catch (e) { console.warn("Failed to store token", e); }
+});
+
+// server instructs viewer/agent revoke control
+socket.on("revoke-control", () => {
+  isControlling = false;
+  statusEl.textContent = "⛔ Control revoked";
+});
+
+// server tells agent to grant control (agent-only) - we keep a listener for debug
+socket.on("grant-control", ({ viewerId }) => {
+  console.log("grant-control received (agent):", viewerId);
+  // agent-side should act on this; viewer side doesn't need to do anything here
 });
 
 // frame (binary) from server/agent
 socket.on("frame", async (buffer) => {
-  // buffer may be ArrayBuffer, Blob, or Buffer depending on client/server
+  // Safety: only draw frames if viewer is either waiting for stream or already viewing.
   try {
     let blob;
     if (buffer instanceof Blob) blob = buffer;
     else if (buffer instanceof ArrayBuffer) blob = new Blob([buffer], { type: 'image/jpeg' });
-    else if (buffer && buffer.data) { // socket.io-node Buffer wrapped
-      // browser socket.io-v4 might deliver Uint8Array-like
+    else if (buffer && buffer.data) { // socket.io-node Buffer wrapped / Uint8Array-like
       blob = new Blob([buffer], { type: 'image/jpeg' });
     } else blob = new Blob([buffer], { type: 'image/jpeg' });
 
@@ -178,15 +236,12 @@ socket.on("frame", async (buffer) => {
     canvasWidth = imgBitmap.width;
     canvasHeight = imgBitmap.height;
 
-    // resize canvas to image natural size (keeps 1:1 mapping for control)
-    // but visually we want it to fill wrapper — we'll scale drawing while retaining ratio mapping
+    // fit canvas visually to wrapper, keep internal resolution equal to image size
     const wrapper = document.querySelector(".remote-wrapper");
     if (wrapper) {
-      // fit canvas to wrapper but keep internal resolution equal to image size
       remoteCanvas.style.width = "100%";
       remoteCanvas.style.height = "100%";
     }
-    // set internal canvas resolution to image size for pixel-perfect mapping
     if (remoteCanvas.width !== canvasWidth || remoteCanvas.height !== canvasHeight) {
       remoteCanvas.width = canvasWidth;
       remoteCanvas.height = canvasHeight;
@@ -195,7 +250,7 @@ socket.on("frame", async (buffer) => {
     // draw to canvas
     ctx.drawImage(imgBitmap, 0, 0, canvasWidth, canvasHeight);
 
-    // auto fullscreen once (best-effort; may require user gesture in some browsers)
+    // auto fullscreen once (best-effort)
     if (!autoFullscreenDone) {
       autoFullscreenDone = true;
       const remoteWrapper = document.querySelector(".remote-wrapper");
@@ -215,6 +270,8 @@ function clearCanvas() {
 
 // control emitter helper — include capture dims so agent maps correctly
 function emitControl(data) {
+  // Only send control events if this viewer has been granted control by the server
+  if (!isControlling) return;
   if (canvasWidth && canvasHeight) {
     data.captureWidth = canvasWidth;
     data.captureHeight = canvasHeight;
@@ -225,16 +282,14 @@ function emitControl(data) {
 // normalize mouse coords from canvas client rect to relative (0..1)
 function canvasClientToRatio(e) {
   const rect = remoteCanvas.getBoundingClientRect();
-  // compute coordinates relative to displayed canvas size then map to internal resolution
   const clientX = e.clientX - rect.left;
   const clientY = e.clientY - rect.top;
   const relX = clientX / rect.width; // 0..1 on displayed size
   const relY = clientY / rect.height;
-  // we send relative ratios; agent will multiply by captureWidth/Height
   return { x: relX, y: relY };
 }
 
-// mouse events
+// mouse events (only emit when isControlling true inside emitControl)
 remoteCanvas.addEventListener("mousemove", e => {
   const { x, y } = canvasClientToRatio(e);
   emitControl({ type: "mousemove", x, y });
@@ -250,7 +305,6 @@ remoteCanvas.addEventListener("wheel", e => {
 
 // keyboard events (global)
 document.addEventListener("keydown", e => {
-  // avoid typing into input fields causing unintended control — only when controls are active
   const active = document.activeElement;
   if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
   emitControl({ type: "keydown", key: e.key });
@@ -278,6 +332,7 @@ socket.on("resume-result", res => {
     statusEl.textContent = "🔁 Resumed control session";
     stopBtn.disabled = false;
     shareBtn.disabled = true;
+    isControlling = true;
   } else {
     console.warn("Resume failed:", res && res.reason);
   }
@@ -285,4 +340,7 @@ socket.on("resume-result", res => {
 
 // optional: show simple status from server
 socket.on("connect", () => console.log("socket connected:", socket.id));
-socket.on("disconnect", () => console.log("socket disconnected"));
+socket.on("disconnect", () => {
+  console.log("socket disconnected");
+  isControlling = false;
+});
