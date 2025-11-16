@@ -1,65 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Screen Share — Remote Control</title>
-  <link rel="stylesheet" href="main.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Screen Share — Remote Control</title>
+<link rel="stylesheet" href="main.css">
 </head>
 <body>
-  <header><h1>Screen Share — Remote Control</h1></header>
+<header><h1>Screen Share</h1></header>
 
-  <div class="main-container">
-    <div class="panel">
-      <div class="row">
-        <label for="name">Name:</label>
-        <input type="text" id="name" placeholder="Enter your name" />
-      </div>
+<!-- 🟢 Wrap panel + sidebar in container -->
+<div class="main-container">
 
-      <div class="row">
-        <label for="room">Room:</label>
-        <input id="room" value="room1" />
-        <button type="button" id="joinBtn">Join</button>
-        <button type="button" id="shareBtn" disabled>Request Access</button>
-        <button type="button" id="stopBtn" disabled>Stop</button>
-        <button type="button" id="leaveBtn" disabled>Leave</button>
-        <span id="status"></span>
-      </div>
+  <!-- 🎥 Main Panel -->
+  <div class="panel">
+    <div class="row">
+      <label for="name">Name:</label>
+      <input id="name" placeholder="Enter your name">
+    </div>
 
-      <!-- Permission Request Box (hidden by default; JS will toggle) -->
-      <div id="perm" class="perm-box" hidden>
-        <div id="permText">Peer wants to view your screen</div>
-        <div class="actions">
-          <button type="button" class="btn-ok" id="acceptBtn">Accept</button>
-          <button type="button" class="btn-no" id="rejectBtn">Reject</button>
-        </div>
-      </div>
+    <div class="row">
+      <label for="room">Room:</label>
+      <input id="room" value="room1">
+      <button id="joinBtn">Join</button>
+      <button id="shareBtn" disabled>Request Access</button>
+      <button id="stopBtn" disabled>Stop</button>
+      <button id="leaveBtn" disabled>Leave</button>
+      <span id="status"></span>
+    </div>
 
-      <!-- Video area: local preview + remote wrapper (video + canvas overlay) -->
-      <div class="videos">
-        <video id="local" autoplay muted playsinline></video>
-
-        <div class="remote-wrapper" id="remoteWrapper">
-          <!-- keep remote <video> as fallback (not replaced) -->
-          <video id="remote" autoplay playsinline></video>
-
-          <!-- canvas receives frames from backend (drawn by JS) -->
-          <canvas id="screenCanvas" aria-hidden="true"></canvas>
-
-          <button id="fullscreenBtn" title="Toggle fullscreen">⛶</button>
-        </div>
+    <div id="perm" class="perm-box">
+      <div id="permText">Peer wants to view your screen</div>
+      <div class="actions">
+        <button class="btn-ok" id="acceptBtn">Accept</button>
+        <button class="btn-no" id="rejectBtn">Reject</button>
       </div>
     </div>
 
-    <aside class="sidebar" id="sidebar">
-      <h3>🟢 Online Users</h3>
-      <div id="userList"></div>
-    </aside>
+    <div class="videos">
+      <video id="local" autoplay muted playsinline></video>
+<div class="remote-wrapper">
+    <canvas id="remoteCanvas"></canvas>
+    <button id="fullscreenBtn">⛶</button>
+</div>
+
+    </div>
   </div>
 
-  <!-- Socket.IO -->
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <!-- Main frontend logic -->
-  <script src="script.js"></script>
+  <!-- 🟢 Sidebar (Online Users List) -->
+  <aside class="sidebar" id="sidebar">
+    <h3>🟢 Online Users</h3>
+    <div id="userList">
+      <!-- Dynamically filled by JS -->
+    </div>
+  </aside>
+
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
