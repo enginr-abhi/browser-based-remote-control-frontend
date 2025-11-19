@@ -1,321 +1,389 @@
 :root {
-  --primary: #1a73e8;
-  --success: #28a745;
-  --danger: #dc3545;
-  --bg-dark: #1e1e2f;
-  --bg-panel: #2a2a3a;
-  --text-light: #fff;
-  --text-muted: #ccc;
+	--primary: #1a73e8;
+	--success: #28a745;
+	--danger: #dc3545;
+	--bg-dark: #1e1e2f;
+	--bg-panel: #2a2a3a;
+	--text-light: #fff;
+	--text-muted: #ccc;
 }
 
 /* --- Reset --- */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { 
-  height: 100%; 
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-  background: #1e1e2f; 
-  color: #fff; 
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+html,
+body {
+	height: 100%;
+	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+	background: #1e1e2f;
+	color: #fff;
 }
 
 /* --- Header --- */
 header {
-  padding: 16px;
-  background: linear-gradient(90deg, #1a73e8, #4285f4);
-  text-align: center;
-  font-size: 24px;
-  font-weight: bold;
-  color: white;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+	padding: 16px;
+	background: linear-gradient(90deg, #1a73e8, #4285f4);
+	text-align: center;
+	font-size: 24px;
+	font-weight: bold;
+	color: white;
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* --- Layout with Sidebar --- */
 body {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
 }
 
 .main-container {
-  display: flex;
-  flex: 1;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  gap: 16px;
-  padding: 16px;
-  align-items: stretch;
+	display: flex;
+	flex: 1;
+	width: 100%;
+	max-width: 1200px;
+	margin: 0 auto;
+	gap: 16px;
+	padding: 16px;
+	align-items: stretch;
+}
+
+/* 🎯 IMMERSIVE MODE FIXES (When screen is active) */
+body.view-active {
+	background: black;
+}
+
+body.view-active header,
+body.view-active .sidebar,
+body.view-active .panel > .row,
+body.view-active #perm {
+	/* Header, Sidebar, and all controls hidden in immersive mode */
+	display: none !important;
+}
+
+body.view-active .main-container {
+	/* Full screen width, no padding/margin */
+	max-width: 100vw;
+	padding: 0;
+	margin: 0;
+	gap: 0;
+}
+body.view-active .panel {
+	/* Panel takes up full available space */
+	padding: 0;
+	border-radius: 0;
+	box-shadow: none;
 }
 
 /* --- Panel --- */
 .panel {
-  flex: 1;
-  padding: 16px;
-  background: #2a2a3a;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-  height: 100%;
+	flex: 1;
+	padding: 16px;
+	background: #2a2a3a;
+	display: flex;
+	flex-direction: column; /* Added explicit column flex for vertical control */
+	gap: 12px;
+	border-radius: 12px;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+	height: 100%;
 }
 
-/* --- Rows --- */
+/* --- Rows (Control elements) --- */
 .row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
 }
 
 label {
-  min-width: 60px;
-  font-weight: 500;
+	min-width: 60px;
+	font-weight: 500;
 }
 
 input {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: none;
-  flex: 1;
-  font-size: 14px;
+	padding: 10px 12px;
+	border-radius: 8px;
+	border: none;
+	flex: 1;
+	font-size: 14px;
 }
 
 /* --- Buttons --- */
 button {
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: none;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+	padding: 10px 16px;
+	border-radius: 8px;
+	border: none;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+	transform: translateY(-2px);
+	box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
 button:disabled {
-  background: #555;
-  cursor: not-allowed;
-  box-shadow: none;
+	background: #555;
+	cursor: not-allowed;
+	box-shadow: none;
 }
 
-#joinBtn { background: var(--success); color: var(--text-light); }
-#shareBtn { background: var(--primary); color: white; }
-#stopBtn { background: var(--danger); color: white; }
+#joinBtn {
+	background: var(--success);
+	color: var(--text-light);
+}
+#shareBtn {
+	background: var(--primary);
+	color: white;
+}
+#stopBtn {
+	background: var(--danger);
+	color: white;
+}
 
 /* ✅ Leave button styling */
 #leaveBtn {
-  background: #ff9800; /* amber */
-  color: #fff;
+	background: #ff9800; /* amber */
+	color: #fff;
 }
 #leaveBtn:hover:not(:disabled) {
-  background: #ffa726;
+	background: #ffa726;
 }
 
 button:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+	transform: translateY(1px);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 #status {
-  margin-left: auto;
-  color: #ccc;
-  font-size: 14px;
-  font-weight: 500;
+	margin-left: auto;
+	color: #ccc;
+	font-size: 14px;
+	font-weight: 500;
 }
 
 /* --- Permission Box --- */
 #perm {
-  display: none;
-  background: #3a3a4a;
-  padding: 16px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+	display: none;
+	background: #3a3a4a;
+	padding: 16px;
+	border-radius: 12px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 #permText {
-  font-weight: bold;
-  margin-bottom: 12px;
+	font-weight: bold;
+	margin-bottom: 12px;
 }
 
 #perm .actions {
-  display: flex;
-  gap: 12px;
+	display: flex;
+	gap: 12px;
 }
 
 #perm.show {
-  display: block;
-  animation: fadeIn 0.3s ease;
+	display: block;
+	animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+	from {
+		opacity: 0;
+		transform: scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
 }
 
-.btn-ok { background: #28a745; color: #fff; flex: 1; }
-.btn-no { background: #dc3545; color: #fff; flex: 1; }
+.btn-ok {
+	background: #28a745;
+	color: #fff;
+	flex: 1;
+}
+.btn-no {
+	background: #dc3545;
+	color: #fff;
+	flex: 1;
+}
 
 /* --- Videos --- */
 .videos {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 60vh;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	/* 🛑 FIX 1: Use flex: 1 to take all remaining vertical space */
+	flex: 1; 
+	/* height: 60vh; <--- REMOVED */
+	background: #000;
+	border-radius: 12px;
+	overflow: hidden;
+}
+
+/* Immersive mode full viewport fill */
+body.view-active .videos {
+	width: 100vw;
+	height: 100vh;
+	border-radius: 0;
 }
 
 .remote-wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%;
+	position: relative;
+	width: 100%;
+	height: 100%;
 }
 
+#remoteScreen {
+	width: 100%;
+	height: 100%;
+	object-fit: contain; /* Correctly fits image while preserving aspect ratio */
+	background: black;
+	display: block;
+}
 #remote {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background: black;
-  display: block;
+	display: none;
 }
-
 #local {
-  display: none;
+	display: none;
 }
 
 /* --- Fullscreen Button --- */
 #fullscreenBtn {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  z-index: 10;
-  background: rgba(0,0,0,0.6);
-  color: white;
-  border: none;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 1.2em;
+	position: absolute;
+	bottom: 10px;
+	right: 10px;
+	z-index: 10;
+	background: rgba(0, 0, 0, 0.6);
+	color: white;
+	border: none;
+	padding: 6px 10px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 1.2em;
 }
 
-/* Fullscreen adjustments */
-:fullscreen #remote,
+/* Fullscreen adjustments (native browser fullscreen, usually not needed with immersive mode) */
+:fullscreen #remoteScreen,
 :-webkit-full-screen #remote,
-:-moz-full-screen #remote,
-:-ms-fullscreen #remote {
-  width: 100vw !important;
-  height: 100vh !important;
-  object-fit: cover !important;
+:-moz-full-screen #remoteScreen,
+:-ms-fullscreen {
+	width: 100vw !important;
+	height: 100vh !important;
+	/* In immersive view, 'contain' is better than 'cover' unless explicitly requested */
+	object-fit: contain !important; 
 }
 
 :fullscreen .remote-wrapper,
 :-webkit-full-screen .remote-wrapper,
 :-moz-full-screen .remote-wrapper,
 :-ms-fullscreen .remote-wrapper {
-  width: 100vw !important;
-  height: 100vh !important;
+	width: 100vw !important;
+	height: 100vh !important;
 }
 
 button:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+	outline: 2px solid var(--primary);
+	outline-offset: 2px;
 }
 
 video::-webkit-media-controls {
-  display: none !important;
+	display: none !important;
 }
 
 video::-webkit-media-controls-enclosure {
-  display: none !important;
+	display: none !important;
 }
 
 @media (max-height: 500px) {
-  .videos {
-    height: 80vh;
-  }
+	.videos {
+		flex: 1; /* Retain flex 1 fix */
+	}
 }
 
 @media (max-width: 600px) {
-  .main-container {
-    flex-direction: column;
-  }
-  .panel {
-    padding: 12px;
-    margin: 0;
-  }
-  .videos {
-    height: 40vh;
-  }
-  .sidebar {
-    width: 100%;
-    order: -1;
-  }
+	.main-container {
+		flex-direction: column;
+	}
+	.panel {
+		padding: 12px;
+		margin: 0;
+	}
+	.videos {
+		/* Adjusted height for mobile view, but flex: 1 will dominate */
+		height: 40vh;
+	}
+	.sidebar {
+		width: 100%;
+		order: -1;
+	}
 }
 
 /* --- SIDEBAR (Online Users) --- */
 .sidebar {
-  width: 220px;
-  background: var(--bg-panel);
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-  padding: 16px;
-  color: var(--text-light);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  height: 100%;
+	width: 220px;
+	background: var(--bg-panel);
+	border-radius: 12px;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+	padding: 16px;
+	color: var(--text-light);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	overflow-y: auto;
+	height: 100%;
 }
 
 .sidebar h3 {
-  text-align: center;
-  font-size: 18px;
-  color: var(--primary);
-  border-bottom: 1px solid #3a3a4a;
-  padding-bottom: 8px;
+	text-align: center;
+	font-size: 18px;
+	color: var(--primary);
+	border-bottom: 1px solid #3a3a4a;
+	padding-bottom: 8px;
 }
 
 .user-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #3a3a4a;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: background 0.2s ease;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	background: #3a3a4a;
+	padding: 8px 12px;
+	border-radius: 8px;
+	transition: background 0.2s ease;
 }
 
 .user-item:hover {
-  background: #4a4a5a;
+	background: #4a4a5a;
 }
 
 .user-name {
-  font-weight: 500;
-  color: var(--text-light);
-  font-size: 14px;
+	font-weight: 500;
+	color: var(--text-light);
+	font-size: 14px;
 }
 
 .user-room {
-  font-size: 12px;
-  color: var(--text-muted);
+	font-size: 12px;
+	color: var(--text-muted);
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-left: 8px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	margin-left: 8px;
 }
 
 .status-online {
-  background: var(--success);
+	background: var(--success);
 }
 
 .status-offline {
-  background: var(--danger);
+	background: var(--danger);
 }
